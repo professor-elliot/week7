@@ -49,11 +49,11 @@ Backend server:
 Use /etc/hosts in the classroom environment.
 
 Example:
-
+```bash
 192.168.56.10 site1.local
 192.168.56.10 app1.local
 192.168.56.20 backend1.local
-
+```
 Adjust addresses to match your environment.
 
 ## Static site

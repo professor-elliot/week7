@@ -1,0 +1,14 @@
+[Unit]
+Description=Week 7 Backend Flask App
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/week7/app-site
+Environment="PATH=/opt/week7/app-site/.venv/bin"
+ExecStart=/opt/week7/app-site/.venv/bin/python /opt/week7/app-site/app.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

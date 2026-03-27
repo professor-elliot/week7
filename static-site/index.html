@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>site1.local</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      line-height: 1.6;
+      padding: 0 20px;
+    }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      background: #fafafa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Welcome to site1.local</h1>
+  <div class="card">
+    <p>This page is served directly by Nginx as static content.</p>
+    <p>Week 7 focus: virtual hosts and multi-site hosting.</p>
+    <p>When students reach this page, they should understand that Nginx matched a host identity and served a file from disk.</p>
+  </div>
+
+  <h2>What this demonstrates</h2>
+  <ul>
+    <li>One web server can answer for more than one site</li>
+    <li><code>server_name</code> helps identify which site should respond</li>
+    <li>Static content can be served without a backend application</li>
+  </ul>
+</body>
+</html>

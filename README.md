@@ -5,10 +5,10 @@ This repository provides the starting point for Week 7: Virtual Hosts and Multi-
 Students are not expected to build website content from scratch in this lab. The purpose of this setup is to let students focus on:
 
 - virtual hosts
-- `server_name`
+- server_name
 - multi-site hosting on one Nginx server
 - the difference between static content and proxied application content
-- verification with `curl`, browser testing, and `nginx -t`
+- verification with curl, browser testing, and nginx -t
 
 ## Learning goal
 
@@ -16,7 +16,6 @@ By the end of this week, students should be able to explain how one Nginx server
 
 ## Repository structure
 
-```text
 week7/
   static-site/
     index.html
@@ -29,34 +28,31 @@ week7/
       app-site.conf
   systemd/
     app-site.service
-```
 
 ## Intended architecture
 
 This base release is designed for two servers:
 
-### Web server
+Web server:
 - Runs Nginx
 - Hosts multiple virtual sites
 - Serves one static site directly
 - Proxies one site to a backend app
 
-### Backend server
+Backend server:
 - Runs a small Python application
 - Responds to HTTP requests
 - Can later be used for reverse proxy, logging, health checks, and failover labs
 
 ## Suggested hostnames
 
-Use `/etc/hosts` in the classroom environment.
+Use /etc/hosts in the classroom environment.
 
 Example:
 
-```text
 192.168.56.10 site1.local
 192.168.56.10 app1.local
 192.168.56.20 backend1.local
-```
 
 Adjust addresses to match your environment.
 
@@ -64,78 +60,107 @@ Adjust addresses to match your environment.
 
 The static site is intended to be served directly by Nginx from a document root.
 
-Example future mapping:
-- `site1.local` -> local files on the web server
+Example mapping:
+site1.local -> local files on the web server
 
 ## Backend app
 
 The Python app is intentionally simple. It returns request information so students can clearly see when the response came from the backend instead of a static file.
 
-Example future mapping:
-- `app1.local` -> Nginx reverse proxy -> Python backend
+Example mapping:
+app1.local -> Nginx reverse proxy -> Python backend
 
 ## Deploying Servers
 
 ### Backend server
-From the repos base directory:
-```bash
+
 cd app-site
-```
-Install dependencies:
-```bash
+
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
+
 Run for testing:
-```bash
+
 python3 app.py
-```
 
-In production you would add and enable it as a service using the included systemd unit.
+Optional (recommended):
 
-### Configure Nginx (web server VM)
+sudo cp systemd/app-site.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start app-site
+sudo systemctl enable app-site
 
-Copy configs
-```bash
+### Configure Nginx (web server)
+
 sudo cp nginx/sites-available/*.conf /etc/nginx/sites-available/
-```
 
-Enable configs
-```bash
 sudo ln -s /etc/nginx/sites-available/static-site.conf /etc/nginx/sites-enabled/
 sudo ln -s /etc/nginx/sites-available/app-site.conf /etc/nginx/sites-enabled/
-```
-Remove the default so this app shows
-```bash
+
 sudo rm /etc/nginx/sites-enabled/default
-```
-Test the config
 
-```bash
 sudo nginx -t
-```
-Reload nginx
-```bash
 sudo systemctl reload nginx
-```
 
-## Verification ideas
+## Verification (run in order)
 
-### Static site
+1. Verify backend app directly
 
-```bash
-curl -H "Host: site1.local" http://WEB_SERVER_IP/
-```
-
-### Backend app directly
-
-```bash
 curl http://BACKEND_SERVER_IP:5000/
-```
 
-### Future proxied app through Nginx
+Expected:
+- JSON response
 
-```bash
+This proves the app works before Nginx is involved.
+
+2. Verify static site
+
+curl -H "Host: site1.local" http://WEB_SERVER_IP/
+
+Expected:
+- HTML content
+
+This proves Nginx is serving local files and matching server_name.
+
+3. Verify proxied app
+
 curl -H "Host: app1.local" http://WEB_SERVER_IP/
-```
+
+Expected:
+- JSON response from backend
+
+This proves proxy_pass is working.
+
+4. Verify identity without DNS
+
+curl -H "Host: site1.local" http://WEB_SERVER_IP/
+curl -H "Host: app1.local" http://WEB_SERVER_IP/
+
+This proves one server can return different responses based on Host header.
+
+5. Test failure behavior
+
+sudo systemctl stop app-site
+
+curl -H "Host: app1.local" http://WEB_SERVER_IP/
+
+Expected:
+- 502 Bad Gateway
+
+This proves Nginx is working but the backend is not.
+
+## Key Concepts
+
+- server_name determines which site answers
+- root serves local files
+- proxy_pass forwards to an application
+- one server can behave differently based on request identity
+- Nginx can be working even if the backend is down
+
+## Common Issues
+
+- 502 error: backend not running or wrong port
+- same site for both hosts: default config still enabled or server_name mismatch
+- hostnames not resolving: /etc/hosts incorrect
+- nginx fails to reload: run nginx -t

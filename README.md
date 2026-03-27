@@ -74,75 +74,82 @@ app1.local -> Nginx reverse proxy -> Python backend
 
 ### Backend server
 
+```bash
 cd app-site
+```
 
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
+```
 Run for testing:
-
+```bash
 python3 app.py
-
+```
 Optional (recommended):
-
+```bash
 sudo cp systemd/app-site.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl start app-site
 sudo systemctl enable app-site
-
+```
 ### Configure Nginx (web server)
-
+```bash
 sudo cp nginx/sites-available/*.conf /etc/nginx/sites-available/
 
 sudo ln -s /etc/nginx/sites-available/static-site.conf /etc/nginx/sites-enabled/
 sudo ln -s /etc/nginx/sites-available/app-site.conf /etc/nginx/sites-enabled/
 
 sudo rm /etc/nginx/sites-enabled/default
+```
 
+Verify nginx config
+
+```bash
 sudo nginx -t
 sudo systemctl reload nginx
-
+```
 ## Verification (run in order)
 
 1. Verify backend app directly
-
+```bash
 curl http://BACKEND_SERVER_IP:5000/
-
+```
 Expected:
 - JSON response
 
 This proves the app works before Nginx is involved.
 
 2. Verify static site
-
+```bash
 curl -H "Host: site1.local" http://WEB_SERVER_IP/
-
+```
 Expected:
 - HTML content
 
 This proves Nginx is serving local files and matching server_name.
 
 3. Verify proxied app
-
+```bash
 curl -H "Host: app1.local" http://WEB_SERVER_IP/
-
+```
 Expected:
 - JSON response from backend
 
 This proves proxy_pass is working.
 
 4. Verify identity without DNS
-
+```bash
 curl -H "Host: site1.local" http://WEB_SERVER_IP/
 curl -H "Host: app1.local" http://WEB_SERVER_IP/
-
+```
 This proves one server can return different responses based on Host header.
 
 5. Test failure behavior
-
+```bash
 sudo systemctl stop app-site
-
+```bash
 curl -H "Host: app1.local" http://WEB_SERVER_IP/
 
 Expected:

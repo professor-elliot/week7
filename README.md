@@ -74,46 +74,49 @@ The Python app is intentionally simple. It returns request information so studen
 Example future mapping:
 - `app1.local` -> Nginx reverse proxy -> Python backend
 
-## Typical deployment idea
+## Deploying Servers
 
-### On the backend server
-
-Copy `app-site/` to a working directory such as:
-
+### Backend server
+From the repos base directory:
 ```bash
-/opt/week7/app-site
+cd app-site
 ```
-
 Install dependencies:
-
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
-
 Run for testing:
-
 ```bash
 python3 app.py
 ```
 
-Later, enable it as a service using the included systemd unit.
+In production you would add and enable it as a service using the included systemd unit.
 
-### On the web server
+### Configure Nginx (web server VM)
 
-Copy the static site into a document root such as:
-
+Copy configs
 ```bash
-/var/www/site1
+sudo cp nginx/sites-available/*.conf /etc/nginx/sites-available/
 ```
 
-Copy the Nginx server block examples from `nginx/sites-available/` into your server.
-
-Then:
+Enable configs
+```bash
+sudo ln -s /etc/nginx/sites-available/static-site.conf /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/app-site.conf /etc/nginx/sites-enabled/
+```
+Remove the default so this app shows
+```bash
+sudo rm /etc/nginx/sites-enabled/default
+```
+Test the config
 
 ```bash
 sudo nginx -t
+```
+Reload nginx
+```bash
 sudo systemctl reload nginx
 ```
 
@@ -136,7 +139,3 @@ curl http://BACKEND_SERVER_IP:5000/
 ```bash
 curl -H "Host: app1.local" http://WEB_SERVER_IP/
 ```
-
-## Instructor note
-
-This is the `week7-base` starting point. It is intentionally minimal so it can be extended in later tags and releases.

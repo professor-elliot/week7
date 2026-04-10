@@ -1,173 +1,300 @@
-# week7-base
+# week8-branch
 
-This repository provides the starting point for Week 7: Virtual Hosts and Multi-Site Hosting.
+This repository provides the starting point for Week 9: Reverse Proxy, Application Logging, Nginx Logging, and Basic OS-Level Observation.
 
-Students are not expected to build website content from scratch in this lab. The purpose of this setup is to let students focus on:
+Students are not expected to build a backend application from scratch in this lab. The purpose of this setup is to let students focus on:
 
-- virtual hosts
-- server_name
-- multi-site hosting on one Nginx server
-- the difference between static content and proxied application content
-- verification with curl, browser testing, and nginx -t
+- reverse proxy behavior
+- the difference between Nginx logs and application logs
+- the difference between live log observation and log searching
+- 502-style upstream failures
+- basic OS network evidence with `ss`
 
 ## Learning goal
 
-By the end of this week, students should be able to explain how one Nginx server can answer for multiple sites and how a request may be served either from local files or from a backend application.
+By the end of this week, students should be able to explain how a request moves through a reverse proxy stack, identify which layer recorded what happened, and use multiple sources of evidence to diagnose a failure.
 
 ## Repository structure
 
-week7/
-  static-site/
-    index.html
-  app-site/
+```text
+week9-branch/
+  README.md
+  app/
     app.py
     requirements.txt
+    logs/
+      .gitkeep
   nginx/
-    sites-available/
-      static-site.conf
-      app-site.conf
+    site.conf
   systemd/
-    app-site.service
-
-## Intended architecture
-
-This base release is designed for two servers:
-
-Web server:
-- Runs Nginx
-- Hosts multiple virtual sites
-- Serves one static site directly
-- Proxies one site to a backend app
-
-Backend server:
-- Runs a small Python application
-- Responds to HTTP requests
-- Can later be used for reverse proxy, logging, health checks, and failover labs
-
-## Suggested hostnames
-
-Use /etc/hosts in the classroom environment.
-
-Example:
-```bash
-192.168.56.10 site1.local
-192.168.56.10 app1.local
-192.168.56.20 backend1.local
-```
-Adjust addresses to match your environment.
-
-## Static site
-
-The static site is intended to be served directly by Nginx from a document root.
-
-Example mapping:
-site1.local -> local files on the web server
-
-## Backend app
-
-The Python app is intentionally simple. It returns request information so students can clearly see when the response came from the backend instead of a static file.
-
-Example mapping:
-app1.local -> Nginx reverse proxy -> Python backend
-
-## Deploying Servers
-
-### Backend server
-
-```bash
-cd app-site
+    app.service
 ```
 
+## What this environment demonstrates
+
+This repository creates a simple three-layer observable system:
+
+1. **Application layer**
+   - Flask app listening on `127.0.0.1:5000`
+   - Writes to `app/logs/app.log`
+
+2. **Web server layer**
+   - Nginx listens on port `80`
+   - Proxies requests to the Flask app
+   - Writes to `/var/log/nginx/access.log` and `/var/log/nginx/error.log`
+
+3. **OS / network layer**
+   - Ubuntu can show listening ports and active connections with `ss`
+   - Optional system log entries can be written with `logger`
+
+## Application behavior
+
+The Flask app provides three useful endpoints:
+
+- `GET /hello`
+  - returns a simple success response
+  - writes an informational log entry
+
+- `GET /headers`
+  - returns selected request headers as JSON
+  - helps students see what Nginx forwarded upstream
+
+- `GET /error`
+  - intentionally raises an exception
+  - useful for observing failure behavior and comparing logs
+
+## Requirements
+
+- Ubuntu
+- Python 3
+- Nginx
+- `python3-venv`
+- `python3-pip`
+
+## Suggested setup
+
+### 1. Install system packages
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+sudo apt update
+sudo apt install -y nginx python3 python3-venv python3-pip
+```
+
+### 2. Create a virtual environment
+
+```bash
+cd app
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
-Run for testing:
+
+### 3. Start the backend application
+
 ```bash
 python3 app.py
 ```
-Optional (recommended):
-```bash
-sudo cp systemd/app-site.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl start app-site
-sudo systemctl enable app-site
-```
-### Configure Nginx (web server)
-```bash
-sudo cp nginx/sites-available/*.conf /etc/nginx/sites-available/
 
-sudo ln -s /etc/nginx/sites-available/static-site.conf /etc/nginx/sites-enabled/
-sudo ln -s /etc/nginx/sites-available/app-site.conf /etc/nginx/sites-enabled/
+The backend should listen on `127.0.0.1:5000`.
 
-sudo rm /etc/nginx/sites-enabled/default
+### 4. Install the Nginx site configuration
+
+Copy the provided site file into your Nginx configuration path. One common approach is:
+
+```bash
+sudo cp nginx/site.conf /etc/nginx/sites-available/week9-app
+sudo ln -s /etc/nginx/sites-available/week9-app /etc/nginx/sites-enabled/week9-app
+sudo rm -f /etc/nginx/sites-enabled/default
 ```
 
-Verify nginx config
+### 5. Test and reload Nginx
 
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
 ```
-## Verification (run in order)
 
-1. Verify backend app directly
+### 6. Verify behavior
+
+Direct to app:
+
 ```bash
-curl http://BACKEND_SERVER_IP:5000/
+curl http://127.0.0.1:5000/hello
 ```
-Expected:
-- JSON response
 
-This proves the app works before Nginx is involved.
+Through Nginx:
 
-2. Verify static site
 ```bash
-curl -H "Host: site1.local" http://WEB_SERVER_IP/
+curl http://localhost/hello
 ```
-Expected:
-- HTML content
 
-This proves Nginx is serving local files and matching server_name.
+## Observing logs
 
-3. Verify proxied app
+### Live observation
+
+Nginx access log:
+
 ```bash
-curl -H "Host: app1.local" http://WEB_SERVER_IP/
+sudo tail -f /var/log/nginx/access.log
 ```
-Expected:
-- JSON response from backend
 
-This proves proxy_pass is working.
+Nginx error log:
 
-4. Verify identity without DNS
 ```bash
-curl -H "Host: site1.local" http://WEB_SERVER_IP/
-curl -H "Host: app1.local" http://WEB_SERVER_IP/
+sudo tail -f /var/log/nginx/error.log
 ```
-This proves one server can return different responses based on Host header.
 
-5. Test failure behavior
+Application log:
+
 ```bash
-sudo systemctl stop app-site
+tail -f app/logs/app.log
+```
+
+### Searching logs
+
+Search for requests to `/hello`:
+
 ```bash
-curl -H "Host: app1.local" http://WEB_SERVER_IP/
+grep "/hello" /var/log/nginx/access.log
+```
 
-Expected:
-- 502 Bad Gateway
+Search for upstream failures:
 
-This proves Nginx is working but the backend is not.
+```bash
+grep "502" /var/log/nginx/access.log
+```
 
-## Key Concepts
+Search for application events:
 
-- server_name determines which site answers
-- root serves local files
-- proxy_pass forwards to an application
-- one server can behave differently based on request identity
-- Nginx can be working even if the backend is down
+```bash
+grep "Request received" app/logs/app.log
+```
 
-## Common Issues
+Filter live access logs for `/hello`:
 
-- 502 error: backend not running or wrong port
-- same site for both hosts: default config still enabled or server_name mismatch
-- hostnames not resolving: /etc/hosts incorrect
-- nginx fails to reload: run nginx -t
+```bash
+sudo tail -f /var/log/nginx/access.log | grep "/hello"
+```
+
+## Observing OS network state
+
+Show listeners and bound processes:
+
+```bash
+sudo ss -tulnp
+```
+
+Show active TCP connections:
+
+```bash
+ss -tn
+```
+
+Refresh active TCP connections continuously:
+
+```bash
+watch -n 1 ss -tn
+```
+
+## Optional Ubuntu log activity beyond defaults
+
+Ubuntu already records system activity in logs such as `/var/log/syslog`. For class purposes, a simple way to demonstrate OS-level logging beyond the application and Nginx is to create a manual system log entry:
+
+```bash
+logger "week9 lab test entry"
+```
+
+Then search for it:
+
+```bash
+grep "week9 lab test entry" /var/log/syslog
+```
+
+This is useful for helping students distinguish between:
+
+- application-generated logs
+- web server-generated logs
+- operating system log records
+
+## 502 failure demonstration
+
+1. Start the app and verify `/hello` works.
+2. Stop the app with `Ctrl+C`.
+3. Request `/hello` through Nginx.
+4. Observe:
+   - `502` in Nginx access log
+   - upstream connection error in Nginx error log
+   - no corresponding application log entry
+   - no listener on port `5000` when checked with `ss`
+
+
+
+## 500 failure demonstration
+
+This scenario contrasts with the 502 case. In a 500 error, Nginx can still reach the backend application, but the application fails while handling the request.
+
+### Recreate the 500 error
+
+1. Start the app and verify `/hello` works.
+2. Request `/error` directly against the app or through Nginx.
+3. Observe:
+   - `500` in the Nginx access log when requested through Nginx
+   - little or no useful information in the Nginx error log, because proxying still worked
+   - corresponding error and exception details in `app/logs/app.log`
+   - port `5000` is still listening when checked with `ss`
+
+### Example commands
+
+Direct to app:
+
+```bash
+curl http://127.0.0.1:5000/error
+```
+
+Through Nginx:
+
+```bash
+curl http://localhost/error
+```
+
+Search for the failed request in Nginx:
+
+```bash
+grep "500" /var/log/nginx/access.log
+```
+
+Search for the application-side failure:
+
+```bash
+grep "Unhandled exception" app/logs/app.log
+```
+
+### Key takeaway
+
+A 500 Internal Server Error means:
+
+> The request reached the application, but the application failed while trying to handle it.
+
+This is different from a 502 Bad Gateway:
+
+- **500** = application failure after the request arrived
+- **502** = reverse proxy failure before the application handled the request
+
+## Optional systemd service
+
+A sample systemd unit file is provided in `systemd/app.service`.
+This is optional and can be used later if you want the app to run as a managed service instead of from a foreground terminal.
+
+## Instructor notes
+
+This repository is intentionally simple.
+It is designed to support reasoning about evidence across layers rather than production completeness.
+
+Not included yet:
+
+- log rotation
+- structured JSON logs
+- centralized logging
+- advanced rsyslog or journald configuration
+
+Those topics can be added later after students become comfortable with basic observation and investigation.
